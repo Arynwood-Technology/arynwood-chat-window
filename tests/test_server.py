@@ -52,8 +52,8 @@ def events(response):
     return out
 
 
-def test_site_info_needs_an_allowed_origin(client):
-    assert client.get("/v1/sites/demo").status_code == 403
+def test_site_info_refuses_foreign_origins(client):
+    assert client.get("/v1/sites/demo").status_code == 200       # same-origin GETs carry no Origin
     assert client.get("/v1/sites/demo", headers={"Origin": "https://evil.example"}).status_code == 403
     assert client.get("/v1/sites/nope", headers=ORIGIN).status_code == 404
     r = client.get("/v1/sites/demo", headers=ORIGIN)

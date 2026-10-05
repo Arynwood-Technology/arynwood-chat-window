@@ -121,9 +121,10 @@ there.
    - whether each model is on the GPU.
 2. **The question set passes on the production host and model:** `chat-window eval SITE FILE`. Its
    `first_token_s_median` is the wait visitors will feel.
-3. **The origin check holds.** From outside:
-   - `curl -i https://example.com/chat-window/v1/sites/SITE` returns 403;
-   - with `-H 'Origin: https://example.com'`, it returns 200.
+3. **The origin check holds.** From outside, a chat request from a foreign origin is refused:
+   - `curl -i -X POST https://example.com/chat-window/v1/chat -H 'Origin: https://evil.example' -H 'Content-Type: application/json' -d '{"site":"SITE","message":"hi"}'`
+     returns 403;
+   - `curl -s https://example.com/chat-window/v1/sites/SITE` shows `"available": true`.
 4. **Rate limits use real addresses.** Seven questions within a minute from one address: the seventh gets
    "Please wait a minute", and a second address isn't affected.
 5. **The privacy policy mentions the chat**; see [privacy.md](privacy.md).

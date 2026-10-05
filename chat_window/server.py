@@ -143,11 +143,12 @@ def create_app(settings: Settings | None = None, sites: dict[str, Site] | None =
         response.headers["Referrer-Policy"] = "no-referrer"
         return response
 
-    def site_for(request: Request, site_id: str) -> Site | JSONResponse:
+    def site_for(request: Request, site_id: str, *, allow_no_origin: bool = False) -> Site | JSONResponse:
         site = state.sites.get(site_id)
         if not site:
             return JSONResponse({"error": "Unknown site."}, status_code=404)
-        if request.headers.get("origin", "").lower() not in site.allowed_origins:
+        origin = request.headers.get("origin", "").lower()
+        if not (origin in site.allowed_origins or (allow_no_origin and not origin)):
             return JSONResponse({"error": "This chat isn't enabled for this website."}, status_code=403)
         return site
 
@@ -162,7 +163,9 @@ def create_app(settings: Settings | None = None, sites: dict[str, Site] | None =
 
     @app.get("/v1/sites/{site_id}")
     async def site_info(site_id: str, request: Request):
-        site = site_for(request, site_id)
+        # Browsers send no Origin on a same-origin GET (the chat proxied under the site's own domain),
+        # and this is only the public greeting and notice. A foreign Origin is still refused.
+        site = site_for(request, site_id, allow_no_origin=True)
         if isinstance(site, JSONResponse):
             return site
         available = state.index(site.id) is not None and await state.models_ready(site)
