@@ -1,0 +1,15 @@
+name = "Arynwood Technology"
+description = "Arynwood Technology makes personal local AI software for Linux and Windows desktops (Arynwood MCP, Cutroom, Arynwood Community), publishes measured local AI benchmarks and guides, and offers paid remote setup services."
+allowed_origins = ["https://arynwood.com", "https://www.arynwood.com"]
+contact = "the contact details at https://arynwood.com/#contact"
+greeting = "Hi! Ask me about Arynwood MCP, local AI setup, or Arynwood's services."
+suggestions = ["What is Arynwood MCP?", "Does it run on Windows?", "Can I run local AI without a GPU?"]
+retention_days = 30
+
+[crawl]
+sitemaps = ["https://arynwood.com/sitemap.xml"]
+allow_domains = ["arynwood.com"]
+lang = "en"
+
+[model]
+chat = "llama3.2:3b"

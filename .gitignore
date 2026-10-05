@@ -1,0 +1,23 @@
+# Indexes, the chat log and anything else a running server writes
+data/
+*.sqlite
+*.sqlite-*
+*.building
+.env
+*.env
+!deploy/chat-window.env.example
+
+# Site files and question sets are per site. Only the example and Arynwood's own are public;
+# clients' stay in private storage (see docs/deploy.md).
+sites/*
+!sites/example.toml
+!sites/arynwood.toml
+evals/*
+!evals/arynwood.jsonl
+
+.venv/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+build/
+dist/

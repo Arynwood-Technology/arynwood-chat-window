@@ -1,0 +1,15 @@
+[Unit]
+Description=Rebuild the Arynwood Chat Window index for %i
+After=network-online.target ollama.service
+
+[Service]
+Type=oneshot
+User=chatwindow
+Group=chatwindow
+EnvironmentFile=/etc/arynwood-chat-window/env
+ExecStart=/opt/arynwood-chat-window/.venv/bin/chat-window index %i
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/arynwood-chat-window

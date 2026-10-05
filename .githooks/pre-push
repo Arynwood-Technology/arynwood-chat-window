@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Versioned pre-push hook — turn it on once per clone with scripts/install-hooks.sh.
+# Refuses a push that would send personal content anywhere but a known-private remote
+# (see scripts/push-guard.py). Git passes the remote name/URL as $1/$2 and the refs on stdin.
+HERE="$(cd "$(dirname "$0")" && pwd)"
+exec python3 "$HERE/../scripts/push-guard.py" --hook "$1" "$2"

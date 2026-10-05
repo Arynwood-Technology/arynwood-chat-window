@@ -1,0 +1,38 @@
+# One file per website: sites/<id>.toml. The id (the file name) goes in the embed code's data-site.
+# This example is ignored by the server; copy it to sites/yoursite.toml and edit.
+
+name = "Example Co."
+description = "Example Co. sells handmade widgets and repairs them."   # one or two sentences, for the model
+allowed_origins = ["https://example.com", "https://www.example.com"]  # pages allowed to embed the chat
+contact = "the contact form at https://example.com/contact"            # where a question the site doesn't answer goes
+greeting = "Hi! Ask me about our widgets, repairs or orders."
+privacy_url = "https://example.com/privacy"   # your privacy policy should mention the chat and its log
+suggestions = ["What do repairs cost?", "Do you ship abroad?"]          # up to four
+retention_days = 30                           # how long chats are kept before deletion
+# notice = "..."                              # replaces the default notice under the chat's title
+
+[crawl]
+sitemaps = ["https://example.com/sitemap.xml"]
+urls = []                                     # extra pages the sitemap doesn't list
+allow_domains = ["example.com"]               # pages to read, and the only domains answers may link to
+exclude = ["^/cart", "^/account"]             # regular expressions matched against the URL path
+lang = "en"                                   # skip pages in other languages ("" keeps all)
+max_pages = 500
+
+[model]
+ollama_url = "http://127.0.0.1:11434"
+chat = "llama3.2:3b"                          # an example; pick by running chat-window eval
+embed = "nomic-embed-text"
+embed_on_gpu = false                          # true on a large GPU; false keeps a small card for the chat model
+num_ctx = 4096
+max_answer_tokens = 350
+
+[retrieval]
+top_k = 4
+min_score = 0.6                               # below this, the chat says the site doesn't cover it
+
+[limits]
+per_minute = 6                                # questions per visitor
+per_day = 60
+max_message_chars = 600
+max_turns = 6
