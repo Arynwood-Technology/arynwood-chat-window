@@ -1,0 +1,10 @@
+<!-- Arynwood Chat Window: put this before </body> on each page that should show the chat.
+     Same-domain setup (deploy/nginx-same-origin.conf or deploy/apache.conf): -->
+<script src="/chat-window/chat-window.js" data-site="mysite" defer></script>
+
+<!-- Or, with the chat server on its own domain (also add that domain to the page's CSP connect-src):
+<script src="https://chat.example.com/chat-window.js" data-site="mysite" defer></script>
+-->
+
+<!-- Optional attributes: data-accent="#1f4e79" (dark enough for white text), data-position="left",
+     data-label="Ask us". A page with a nonce-based CSP adds nonce="..." with that request's nonce. -->

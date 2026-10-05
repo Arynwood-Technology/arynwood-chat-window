@@ -8,6 +8,7 @@
     chat-window export SITE           redacted chats, as JSONL, for review or training
     chat-window purge                 delete log rows past each site's retention
     chat-window serve                 run the web server
+    chat-window doctor SITE           check a deployment: settings, Ollama, models, GPU, index, one answer
 """
 from __future__ import annotations
 
@@ -50,10 +51,14 @@ async def cmd_index(settings: Settings, site: Site) -> None:
     print(f"{len(report.pages)} pages, {len(chunks)} chunks. Embedding with {site.model.embed} …")
     vectors: list[list[float]] = []
     started = time.monotonic()
-    for i in range(0, len(chunks), 32):
-        batch = chunks[i:i + 32]
+    for i in range(0, len(chunks), 16):
+        batch = chunks[i:i + 16]
         text = [f"{c.title}\n{c.heading}\n{c.text}" for c in batch]
-        vectors += await ollama.embed(text, site.model.ollama_url, site.model.embed, gpu=site.model.embed_on_gpu)
+        # A background job: a slow CPU may take minutes per batch, which is fine here.
+        vectors += await ollama.embed(text, site.model.ollama_url, site.model.embed, gpu=site.model.embed_on_gpu,
+                                      timeout=600.0)
+        if (i // 16) % 10 == 9:
+            print(f"  embedded {len(vectors)}/{len(chunks)} ({time.monotonic() - started:.0f}s)", flush=True)
     out = settings.site_dir(site.id)
     build(out / "index.sqlite", chunks, vectors,
           {"site": site.id, "embed_model": site.model.embed, "page_count": len(report.pages)})
@@ -122,17 +127,23 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--out", type=Path, help="write every result as JSON")
     sub.add_parser("purge")
     p = sub.add_parser("serve")
-    p.add_argument("--host", default="127.0.0.1")
-    p.add_argument("--port", type=int, default=8790)
+    p.add_argument("--host", help="default: CHAT_WINDOW_HOST or 127.0.0.1")
+    p.add_argument("--port", type=int, help="default: CHAT_WINDOW_PORT or 8790")
+    p = sub.add_parser("doctor")
+    p.add_argument("site")
+    p.add_argument("--question", help="a question the site answers (default: its first suggestion)")
     args = parser.parse_args(argv)
     settings = Settings.from_env()
 
     if args.cmd == "serve":
         import uvicorn
         from .server import create_app
-        uvicorn.run(create_app(settings), host=args.host, port=args.port, proxy_headers=False,
-                    server_header=False)
+        uvicorn.run(create_app(settings), host=args.host or settings.host, port=args.port or settings.port,
+                    proxy_headers=False, server_header=False)
         return
+    if args.cmd == "doctor":
+        from .doctor import run
+        sys.exit(asyncio.run(run(settings, _site(settings, args.site), args.question)))
     if args.cmd in ("purge", "stats", "export"):
         from .logstore import ChatLog
         log = ChatLog(settings.data_dir / "chats.sqlite", settings.secret)

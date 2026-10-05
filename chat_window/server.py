@@ -89,7 +89,7 @@ class State:
 
 def client_address(request: Request, settings: Settings) -> str:
     peer = request.client.host if request.client else ""
-    if peer in settings.trusted_proxies:
+    if settings.trusts(peer):
         forwarded = request.headers.get(settings.client_ip_header, "").split(",")[0].strip()
         if forwarded:
             return forwarded
@@ -138,6 +138,8 @@ def create_app(settings: Settings | None = None, sites: dict[str, Site] | None =
             response.headers["Access-Control-Allow-Origin"] = origin
             response.headers["Vary"] = "Origin"
         response.headers["X-Content-Type-Options"] = "nosniff"
+        if request.url.path.startswith("/v1/"):
+            response.headers["Cache-Control"] = "no-store"     # never let a CDN cache an answer or a site's status
         response.headers["Referrer-Policy"] = "no-referrer"
         return response
 

@@ -61,3 +61,19 @@ def test_retention_is_bounded():
         make_site(retention_days=0)
     with pytest.raises(ConfigError):
         make_site(retention_days=400)
+
+
+def test_environment_settings(monkeypatch, tmp_path):
+    from chat_window.config import Settings
+    (tmp_path / "demo.toml").write_text(
+        'name="D"\ndescription="d"\nallowed_origins=["https://d.example"]\ncontact="c"\n'
+        '[crawl]\nallow_domains=["d.example"]\n')
+    (tmp_path / "example.toml").write_text("ignored = true\n")
+    monkeypatch.setenv("CHAT_WINDOW_SITES", str(tmp_path))
+    monkeypatch.setenv("CHAT_WINDOW_OLLAMA_URL", "http://ollama:11434/")
+    monkeypatch.setenv("CHAT_WINDOW_HOST", "0.0.0.0")
+    monkeypatch.setenv("CHAT_WINDOW_TRUSTED_PROXIES", "172.16.0.0/12")
+    settings = Settings.from_env()
+    sites = settings.load_sites()
+    assert list(sites) == ["demo"] and sites["demo"].model.ollama_url == "http://ollama:11434"
+    assert settings.host == "0.0.0.0" and settings.trusts("172.18.0.1") and not settings.trusts("10.0.0.1")

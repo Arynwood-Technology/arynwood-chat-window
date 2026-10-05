@@ -27,7 +27,7 @@ async def embed(texts: list[str], url: str, model: str, *, query: bool = False, 
             r.raise_for_status()
             vectors = r.json().get("embeddings") or []
     except httpx.HTTPError as exc:
-        raise ModelError(f"embedding model {model!r} at {url} failed: {exc}") from exc
+        raise ModelError(f"embedding model {model!r} at {url} failed: {type(exc).__name__} {exc}".rstrip()) from exc
     if len(vectors) != len(texts):
         raise ModelError(f"embedding model {model!r} returned {len(vectors)} vectors for {len(texts)} texts")
     return vectors
@@ -55,7 +55,7 @@ async def chat_stream(messages: list[dict], url: str, model: str, *, num_ctx: in
                     if event.get("done"):
                         return
     except httpx.HTTPError as exc:
-        raise ModelError(f"chat model {model!r} at {url} failed: {exc}") from exc
+        raise ModelError(f"chat model {model!r} at {url} failed: {type(exc).__name__} {exc}".rstrip()) from exc
 
 
 async def available(url: str, models: list[str], timeout: float = 5.0) -> dict[str, bool]:

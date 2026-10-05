@@ -5,7 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from chat_window import answer, server
-from chat_window.config import Settings
+from chat_window.config import ConfigError, Settings, parse_networks
 from chat_window.index import Hit, build
 from chat_window.textify import Chunk
 
@@ -18,7 +18,7 @@ ORIGIN = {"Origin": "https://demo.example"}
 def client(tmp_path, monkeypatch):
     site = make_site(limits={"per_minute": 3, "per_day": 10, "max_message_chars": 50})
     settings = Settings(sites_dir=tmp_path, data_dir=tmp_path / "data", secret="k",
-                        trusted_proxies=frozenset({"testclient"}), client_ip_header="X-Real-IP",
+                        trusted_proxies=parse_networks("127.0.0.0/8"), client_ip_header="X-Real-IP",
                         max_concurrent=1, max_queue=2)
     build(settings.site_dir("demo") / "index.sqlite",
           [Chunk("https://demo.example/plans", "Plans", "", "Small: $4.00")], [[1.0, 0.0]], {"site": "demo"})
@@ -39,7 +39,7 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr(answer.ollama, "chat_stream", chat_stream)
     monkeypatch.setattr(server.State, "models_ready", ready)
     app = server.create_app(settings, {"demo": site})
-    with TestClient(app) as c:
+    with TestClient(app, client=("127.0.0.1", 50000)) as c:
         c.chat_state = app.state.chat
         yield c
 
@@ -121,7 +121,7 @@ def test_rate_limit_is_per_visitor_and_logged(client):
 
 
 def test_client_address_header_is_only_trusted_from_proxies():
-    settings = Settings(Path("."), Path("."), "k", frozenset({"127.0.0.1"}), "X-Real-IP", 1, 1)
+    settings = Settings(Path("."), Path("."), "k", parse_networks("127.0.0.1, 10.20.0.0/16, ::1"), "X-Real-IP", 1, 1)
 
     class Req:
         def __init__(self, peer, header):
@@ -130,6 +130,17 @@ def test_client_address_header_is_only_trusted_from_proxies():
     assert server.client_address(Req("127.0.0.1", "198.51.100.1"), settings) == "198.51.100.1"
     assert server.client_address(Req("203.0.113.5", "198.51.100.1"), settings) == "203.0.113.5"
     assert server.client_address(Req("127.0.0.1", ""), settings) == "127.0.0.1"
+    assert server.client_address(Req("10.20.3.4", "198.51.100.2"), settings) == "198.51.100.2"   # a proxy on the LAN
+    assert server.client_address(Req("10.21.0.1", "198.51.100.2"), settings) == "10.21.0.1"
+    assert server.client_address(Req("testclient", "198.51.100.2"), settings) == "testclient"
+    with pytest.raises(ConfigError):
+        parse_networks("127.0.0.1, not-an-ip")
+
+
+def test_api_responses_are_never_cached(client):
+    assert client.get("/v1/sites/demo", headers=ORIGIN).headers["cache-control"] == "no-store"
+    assert client.get("/v1/health").headers["cache-control"] == "no-store"
+    assert "max-age" in client.get("/chat-window.js").headers["cache-control"]
 
 
 def test_widget_is_served_as_javascript(client):

@@ -1,0 +1,46 @@
+# Ollama and the chat server in containers. From this directory:
+#   cp chat-window.env.example chat-window.env      # set CHAT_WINDOW_SECRET
+#   mkdir -p sites && cp /path/to/mysite.toml sites/
+#   docker compose up -d --build
+#   docker compose exec ollama ollama pull llama3.2:3b
+#   docker compose exec ollama ollama pull nomic-embed-text
+#   docker compose run --rm chat-window index mysite
+#   docker compose run --rm chat-window doctor mysite
+# Rebuild indexes nightly from the host's cron:
+#   30 4 * * *  cd /path/to/deploy && docker compose run --rm chat-window index mysite
+# The GPU reservation needs the NVIDIA Container Toolkit; without a GPU, delete the deploy: block.
+services:
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    volumes:
+      - ollama:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  chat-window:
+    build: ..
+    restart: unless-stopped
+    depends_on: [ollama]
+    env_file: chat-window.env
+    environment:
+      CHAT_WINDOW_OLLAMA_URL: http://ollama:11434
+      CHAT_WINDOW_SITES: /sites
+      CHAT_WINDOW_DATA: /data
+      CHAT_WINDOW_HOST: 0.0.0.0
+      # The reverse proxy reaches the container through Docker's bridge, so that's whose header is believed.
+      CHAT_WINDOW_TRUSTED_PROXIES: 127.0.0.1,172.16.0.0/12
+    volumes:
+      - ./sites:/sites:ro
+      - chat-data:/data
+    ports:
+      - "127.0.0.1:8790:8790"     # only the reverse proxy on this host should reach it
+
+volumes:
+  ollama:
+  chat-data:

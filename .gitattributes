@@ -1,0 +1,4 @@
+# Development-only files stay out of release archives (git archive, GitHub source downloads).
+.githooks export-ignore
+scripts/push-guard.py export-ignore
+.github export-ignore

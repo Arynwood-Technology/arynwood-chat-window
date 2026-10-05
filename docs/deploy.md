@@ -1,72 +1,140 @@
 # Deploying
 
-One server process can serve many sites. Each site has a file in the sites directory, and its own index in
-the data directory.
+The chat runs as two pieces:
 
-## Layout on the host
+- **The chat server.** It runs on a machine you control, next to Ollama, which runs the models.
+- **The chat window.** The website loads it with one `<script>` tag.
+
+One server can serve many sites. Each site has its own file in the sites directory and its own index.
 
 ```
-/opt/arynwood-chat-window/            the code and its venv
-/etc/arynwood-chat-window/sites/      one TOML file per site (clients' files never go in this repo)
-/etc/arynwood-chat-window/env         CHAT_WINDOW_SECRET and other settings, mode 600
-/var/lib/arynwood-chat-window/        indexes and the chat log
+visitor's browser ──► your website (adds the <script> tag)
+        │
+        └──► /chat-window/ on the same domain (proxied) ──► chat server :8790 ──► Ollama :11434
 ```
+
+## 1. Install the chat server
+
+Pick one of three ways.
+
+### A. The installer (Debian or Ubuntu with systemd)
 
 ```bash
-sudo useradd --system --home /var/lib/arynwood-chat-window --create-home chatwindow
-sudo git clone https://github.com/Arynwood-Technology/arynwood-chat-window /opt/arynwood-chat-window
-sudo python3 -m venv /opt/arynwood-chat-window/.venv
-sudo /opt/arynwood-chat-window/.venv/bin/pip install /opt/arynwood-chat-window
-sudo install -d -m 755 /etc/arynwood-chat-window/sites
-sudo install -m 600 deploy/chat-window.env.example /etc/arynwood-chat-window/env   # then set the secret
-sudo cp deploy/chat-window.service deploy/chat-window-index@.service deploy/chat-window-index@.timer \
-    /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl start chat-window-index@mysite.service     # the first index; watch: journalctl -u chat-window-index@mysite
-sudo systemctl enable --now chat-window chat-window-index@mysite.timer
+git clone https://github.com/Arynwood-Technology/arynwood-chat-window
+cd arynwood-chat-window
+sudo deploy/install.sh --site /path/to/mysite.toml --evals /path/to/mysite.jsonl
 ```
 
-The timer rebuilds a site's index every night, so changed prices or pages reach the chat within a day.
-The server picks up a rebuilt index without a restart.
+It does everything:
 
-## Ollama
+- creates a `chatwindow` system account;
+- installs the code in `/opt/arynwood-chat-window` and writes `/etc/arynwood-chat-window/env` with a new
+  secret;
+- pulls the site's models into Ollama;
+- builds the site's index, and starts the service and a nightly re-index timer;
+- runs `chat-window doctor` and the question set.
 
-Run Ollama on the same host, listening only on `127.0.0.1`. Pull the chat and embedding models named in the
-site files. With a small graphics card:
+Running it again upgrades the code and keeps the secret, the log and the indexes.
 
-- Keep `embed_on_gpu = false` (the default). Embeddings then run on the CPU, which takes about a third of a
-  second per question, and the card's memory stays free for the chat model.
-- After the first question, `ollama ps` should show the chat model at `100% GPU`. If it shows CPU, the card
-  isn't being used: check that the installed Ollama still supports that GPU generation.
-- Llama 3.2 3B at the default 4,096-token context needs about 3 GB of video memory.
+For day-to-day commands, `sudo chat-window-admin <command>` runs as the service account with its
+settings: `doctor`, `stats`, `index`, `export`, `purge`.
 
-## Putting it on the web
+Options:
 
-The server listens on `127.0.0.1:8790`. Put a TLS reverse proxy in front of it:
+- `--host` and `--port` set where it listens (default `127.0.0.1:8790`).
+- `--trusted-proxies` names the reverse proxies whose client-address header is believed. Use an address or
+  network such as `10.0.0.5` or `10.0.0.0/24`.
 
-- **nginx**: `deploy/nginx.conf` is a server block. It turns off buffering (answers stream) and limits
-  request size. It passes the real visitor address in `X-Real-IP`, which the server believes only from
-  `CHAT_WINDOW_TRUSTED_PROXIES`.
-- **Behind Cloudflare**: set nginx's `real_ip_header CF-Connecting-IP` with Cloudflare's address ranges
-  (`set_real_ip_from`), so `$remote_addr` is the visitor's address, not Cloudflare's. Otherwise every visitor
-  shares one rate limit.
+Ollama must already be installed and running on `127.0.0.1`. See [ollama.com/download/linux](https://ollama.com/download/linux).
 
-## On the website
+### B. Docker Compose (Ollama and the chat server in containers)
 
-- **The embed tag.** Add `<script src="https://chat.example.com/chat-window.js" data-site="mysite" defer></script>`
-  to the pages that should show the chat.
-- **CSP.** If the site sends a Content Security Policy, add `https://chat.example.com` to `connect-src`. For
-  the script, either add the same origin to `script-src`, or put the page's nonce on the tag; with
-  `'strict-dynamic'`, the nonce alone is enough.
-- **Same-origin option.** Alternatively, proxy `/chat-window/` on the site's own server to the chat server
-  and use `data-endpoint="https://example.com/chat-window"`. Then `'self'` covers everything.
+```bash
+cd deploy
+cp chat-window.env.example chat-window.env     # set CHAT_WINDOW_SECRET
+mkdir -p sites && cp /path/to/mysite.toml sites/
+docker compose up -d --build
+docker compose exec ollama ollama pull llama3.2:3b
+docker compose exec ollama ollama pull nomic-embed-text
+docker compose run --rm chat-window index mysite
+docker compose run --rm chat-window doctor mysite
+```
 
-## Checks before going live
+- **GPU.** The GPU needs the NVIDIA Container Toolkit. Without a GPU, delete the `deploy:` block from
+  `docker-compose.yml`.
+- **Nightly re-index.** Add a cron line on the host:
+  `30 4 * * * cd /path/to/deploy && docker compose run --rm chat-window index mysite`.
 
-1. **The question set passes.** `chat-window eval SITE FILE` passes on the production host, with the
-   production model. Its `first_token_s_median` is the speed visitors will feel.
-2. **The privacy policy is ready.** It mentions the chat and its retention; see [privacy.md](privacy.md).
-3. **The origin check holds.** `curl -i https://chat.example.com/v1/sites/SITE` returns 403 without an
-   `Origin` header, and 200 with the site's origin.
-4. **Rate limits engage.** Send seven questions within a minute from one address; the seventh gets "Please
-   wait a minute".
+### C. By hand
+
+```bash
+python3 -m venv venv
+venv/bin/pip install .
+CHAT_WINDOW_SECRET=... venv/bin/chat-window serve
+```
+
+The units in `deploy/` show the systemd setup the installer uses.
+
+## 2. Put it behind the website
+
+**Same domain (recommended).** Proxy `https://example.com/chat-window/` to the chat server. A page with a
+Content Security Policy then needs no new host: `connect-src 'self'` already covers the chat.
+
+- nginx: paste `deploy/nginx-same-origin.conf` into the site's `server { }` block.
+- Apache: paste `deploy/apache.conf` into the site's `<VirtualHost>` (modules: `proxy proxy_http headers`).
+
+**Its own domain.** Use `deploy/nginx.conf`, with TLS, for `https://chat.example.com`. The page's CSP then
+needs `connect-src https://chat.example.com` and the script host or nonce.
+
+**The visitor's real address.** Rate limits are per visitor, so the chat server must see each visitor's
+address, not the proxy's:
+
+- The proxy sends `X-Real-IP`.
+- The chat server believes that header only from `CHAT_WINDOW_TRUSTED_PROXIES`. If the web server is
+  another machine, add its address there.
+- Behind Cloudflare, set nginx's `real_ip_header CF-Connecting-IP` or Apache's `RemoteIPHeader CF-Connecting-IP`,
+  with Cloudflare's ranges, first. Otherwise every visitor shares Cloudflare's addresses, and one rate limit.
+
+**Streaming.** Answers stream as server-sent events. The snippets turn off proxy buffering and compression
+for this path. Keep any CDN from caching `/chat-window/v1/`: the server already sends `Cache-Control: no-store`
+there.
+
+## 3. Add the chat window to the pages
+
+```html
+<script src="/chat-window/chat-window.js" data-site="mysite" defer></script>
+```
+
+- **The server address.** The chat window finds its server from where the script was loaded, so the
+  same-domain path just works.
+- **PHP sites.** `examples/embed.php` writes the tag, including the request's CSP nonce.
+- **Nonce-based CSPs.** A CSP with `'strict-dynamic'` runs only scripts carrying that request's nonce, so
+  the tag needs `nonce="..."`.
+
+## 4. Check before going live
+
+1. **`chat-window doctor SITE` passes on the production host.** It checks:
+   - the settings;
+   - Ollama, and that the models are pulled;
+   - the index age;
+   - one real answer, timed;
+   - whether each model is on the GPU.
+2. **The question set passes on the production host and model:** `chat-window eval SITE FILE`. Its
+   `first_token_s_median` is the wait visitors will feel.
+3. **The origin check holds.** From outside:
+   - `curl -i https://example.com/chat-window/v1/sites/SITE` returns 403;
+   - with `-H 'Origin: https://example.com'`, it returns 200.
+4. **Rate limits use real addresses.** Seven questions within a minute from one address: the seventh gets
+   "Please wait a minute", and a second address isn't affected.
+5. **The privacy policy mentions the chat**; see [privacy.md](privacy.md).
+
+## Hardware notes
+
+- **Small GPUs (4 GB).** A 3B chat model needs about 2.4 GB at the default 4,096-token context, and
+  `nomic-embed-text` about 0.4 GB, so both fit on a 4 GB card. Set `embed_on_gpu = true` to embed there too.
+  Index builds are much faster on a GPU.
+- **GPU support.** After the first question, `chat-window doctor` shows where each model is loaded. If a
+  model you expect on the GPU shows 0%, the installed Ollama build may not support that card. Check its
+  release notes for supported GPU generations.
+- **CPU only.** It works, but the first word of each answer can take ten seconds or more, and index builds
+  can take a long time. Measure with `doctor`.

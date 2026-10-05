@@ -5,9 +5,14 @@ environment so one process can serve many sites.
 """
 from __future__ import annotations
 
+import dataclasses
+import ipaddress
 import os
 import re
-import tomllib
+try:
+    import tomllib
+except ModuleNotFoundError:          # Python 3.10
+    import tomli as tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -153,15 +158,31 @@ def load_site(path: Path) -> Site:
     return parse_site(path.stem, data)
 
 
+def parse_networks(value: str) -> tuple:
+    """'127.0.0.1, 10.0.0.0/8, ::1' -> networks. A bad entry is a configuration error, not ignored."""
+    networks = []
+    for entry in (e.strip() for e in value.split(",")):
+        if not entry:
+            continue
+        try:
+            networks.append(ipaddress.ip_network(entry, strict=False))
+        except ValueError as exc:
+            raise ConfigError(f"CHAT_WINDOW_TRUSTED_PROXIES: {entry!r} isn't an address or network") from exc
+    return tuple(networks)
+
+
 @dataclass(frozen=True)
 class Settings:
     sites_dir: Path
     data_dir: Path
     secret: str                       # keys the hashed visitor addresses in the log
-    trusted_proxies: frozenset[str]   # peers whose client-address header is believed
+    trusted_proxies: tuple            # networks whose client-address header is believed
     client_ip_header: str
     max_concurrent: int
     max_queue: int
+    host: str = "127.0.0.1"
+    port: int = 8790
+    ollama_url: str = ""              # overrides every site's [model] ollama_url (e.g. in Docker)
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -169,12 +190,21 @@ class Settings:
             sites_dir=Path(os.environ.get("CHAT_WINDOW_SITES", "sites")),
             data_dir=Path(os.environ.get("CHAT_WINDOW_DATA", "data")),
             secret=os.environ.get("CHAT_WINDOW_SECRET", ""),
-            trusted_proxies=frozenset(p.strip() for p in os.environ.get(
-                "CHAT_WINDOW_TRUSTED_PROXIES", "127.0.0.1,::1").split(",") if p.strip()),
+            trusted_proxies=parse_networks(os.environ.get("CHAT_WINDOW_TRUSTED_PROXIES", "127.0.0.1,::1")),
             client_ip_header=os.environ.get("CHAT_WINDOW_CLIENT_IP_HEADER", "X-Real-IP"),
             max_concurrent=int(os.environ.get("CHAT_WINDOW_MAX_CONCURRENT", "1")),
             max_queue=int(os.environ.get("CHAT_WINDOW_MAX_QUEUE", "8")),
+            host=os.environ.get("CHAT_WINDOW_HOST", "127.0.0.1"),
+            port=int(os.environ.get("CHAT_WINDOW_PORT", "8790")),
+            ollama_url=os.environ.get("CHAT_WINDOW_OLLAMA_URL", "").rstrip("/"),
         )
+
+    def trusts(self, address: str) -> bool:
+        try:
+            ip = ipaddress.ip_address(address)
+        except ValueError:
+            return False
+        return any(ip in network for network in self.trusted_proxies)
 
     def load_sites(self) -> dict[str, Site]:
         sites = {}
@@ -182,6 +212,8 @@ class Settings:
             if path.stem == "example":
                 continue
             site = load_site(path)
+            if self.ollama_url:
+                site = dataclasses.replace(site, model=dataclasses.replace(site.model, ollama_url=self.ollama_url))
             sites[site.id] = site
         return sites
 

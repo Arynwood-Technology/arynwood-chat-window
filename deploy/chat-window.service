@@ -7,7 +7,7 @@ Wants=network-online.target
 User=chatwindow
 Group=chatwindow
 EnvironmentFile=/etc/arynwood-chat-window/env
-ExecStart=/opt/arynwood-chat-window/.venv/bin/chat-window serve --host 127.0.0.1 --port 8790
+ExecStart=/opt/arynwood-chat-window/venv/bin/chat-window serve
 Restart=on-failure
 RestartSec=5
 # The server reads site files and writes only its data directory.
@@ -17,6 +17,7 @@ ProtectHome=true
 PrivateTmp=true
 PrivateDevices=true
 ReadWritePaths=/var/lib/arynwood-chat-window
+WorkingDirectory=/var/lib/arynwood-chat-window
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true

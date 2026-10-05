@@ -45,6 +45,7 @@ def test_log_needs_a_secret(tmp_path):
 
 def test_log_hashes_addresses_and_honours_retention(tmp_path):
     log = ChatLog(tmp_path / "c.sqlite", "s3cret")
+    assert (tmp_path / "c.sqlite").stat().st_mode & 0o777 == 0o600
     log.record(site="a", session="s1", address="203.0.113.9", question="hi", answer="hello", outcome="answered")
     log.record(site="b", session="s2", address="203.0.113.9", question="hi", outcome="answered")
     row = log.db.execute("SELECT visitor FROM chats WHERE site='a'").fetchone()[0]

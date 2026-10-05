@@ -4,17 +4,18 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "arynwood-chat-window"
-version = "0.1.0"
+version = "0.2.0"
 description = "A website chat window that answers from the site's own public pages, with a local model."
 readme = "README.md"
 license = "AGPL-3.0-only"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 authors = [{ name = "Arynwood Technology" }]
 dependencies = [
     "fastapi~=0.142.2",
     "uvicorn~=0.54.0",
     "httpx~=0.28.1",
     "numpy>=1.26,<3",                # 2.3+ dropped Python 3.11; only basic array maths is used
+    "tomli~=2.0; python_version < '3.11'",
 ]
 
 [project.optional-dependencies]

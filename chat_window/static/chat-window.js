@@ -6,7 +6,9 @@
   window.__arynwoodChatWindow = true;
 
   var SITE = script.getAttribute('data-site') || '';
-  var ENDPOINT = (script.getAttribute('data-endpoint') || new URL(script.src, location.href).origin).replace(/\/+$/, '');
+  // The server is wherever the script came from: https://chat.example.com/chat-window.js, or a proxied
+  // path on the site itself such as https://example.com/chat-window/chat-window.js.
+  var ENDPOINT = (script.getAttribute('data-endpoint') || new URL('.', script.src).href).replace(/\/+$/, '');
   var ACCENT = script.getAttribute('data-accent') || '#2f6f5e';
   var SIDE = script.getAttribute('data-position') === 'left' ? 'left' : 'right';
   var LABEL = script.getAttribute('data-label') || 'Chat';

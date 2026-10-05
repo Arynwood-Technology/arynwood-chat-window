@@ -3,7 +3,7 @@
 A chat window for your website that answers from your site's own public pages, using a model you run
 yourself through [Ollama](https://ollama.com). Visitors' questions go to your server, not to an AI company.
 
-**Status: alpha (0.1.0).** It runs, it's tested, and it hasn't served real visitors yet.
+**Status: alpha (0.2.0).** It runs, it's tested, and it hasn't served real visitors yet.
 
 ## How it works
 
@@ -54,7 +54,21 @@ export CHAT_WINDOW_SECRET="$(python3 -c 'import secrets; print(secrets.token_hex
 | `data-position` | `right` | `left` or `right` |
 | `data-label` | `Chat` | The launcher's label |
 
-The page must be on the site's `allowed_origins`.
+The page must be on the site's `allowed_origins`. If the server is proxied at `/chat-window/` on the site's own
+domain, use `src="/chat-window/chat-window.js"`. The chat window finds its server from where the script came
+from. PHP sites can use `examples/embed.php`, which also adds the request's CSP nonce.
+
+## Deploy
+
+[docs/deploy.md](docs/deploy.md) covers three ways to install the server:
+
+- **`deploy/install.sh`**, for Debian or Ubuntu with systemd: one command, safe to re-run;
+- **Docker Compose**, with Ollama in a container next to it;
+- **by hand.**
+
+It also has nginx and Apache snippets for serving the chat from the site's own domain, and a pre-launch
+checklist. After installing, `chat-window doctor SITE` checks the whole path: settings, Ollama, models, GPU,
+index and one real answer.
 
 **Content Security Policy.** A site with a CSP needs two changes:
 
@@ -105,10 +119,12 @@ Details and the site owner's part: [docs/privacy.md](docs/privacy.md).
 | `CHAT_WINDOW_SITES` | `sites` | Directory of site files |
 | `CHAT_WINDOW_DATA` | `data` | Indexes and the chat log |
 | `CHAT_WINDOW_SECRET` | (required) | Keys the hashed visitor addresses. Keep it private |
-| `CHAT_WINDOW_TRUSTED_PROXIES` | `127.0.0.1,::1` | Peers whose client-address header is believed |
+| `CHAT_WINDOW_TRUSTED_PROXIES` | `127.0.0.1,::1` | Addresses or networks whose client-address header is believed |
 | `CHAT_WINDOW_CLIENT_IP_HEADER` | `X-Real-IP` | That header |
 | `CHAT_WINDOW_MAX_CONCURRENT` | `1` | Answers generated at once |
 | `CHAT_WINDOW_MAX_QUEUE` | `8` | Answers allowed to wait; beyond that, visitors are asked to retry |
+| `CHAT_WINDOW_HOST`, `CHAT_WINDOW_PORT` | `127.0.0.1`, `8790` | Where `serve` listens |
+| `CHAT_WINDOW_OLLAMA_URL` | (unset) | Overrides every site's `ollama_url`, e.g. `http://ollama:11434` in Docker |
 
 Per-site settings (rate limits, retention, model, retrieval threshold) are in each site file; see
 `sites/example.toml`.

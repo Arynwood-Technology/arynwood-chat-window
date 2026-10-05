@@ -46,6 +46,10 @@ class ChatLog:
             raise ValueError("CHAT_WINDOW_SECRET must be set: it keys the hashed visitor addresses")
         path.parent.mkdir(parents=True, exist_ok=True)
         self.db = sqlite3.connect(path, check_same_thread=False)
+        try:
+            path.chmod(0o600)             # only the service account reads the log
+        except PermissionError:           # opened by another account (e.g. root reading stats)
+            pass
         self.db.executescript(SCHEMA)
         self.secret = secret.encode()
         self.lock = threading.Lock()
