@@ -14,7 +14,7 @@ dependencies = [
     "fastapi~=0.142.2",
     "uvicorn~=0.54.0",
     "httpx~=0.28.1",
-    "numpy~=2.5.3",
+    "numpy>=1.26,<3",                # 2.3+ dropped Python 3.11; only basic array maths is used
 ]
 
 [project.optional-dependencies]
