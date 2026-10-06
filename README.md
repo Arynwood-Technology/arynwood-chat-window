@@ -148,3 +148,25 @@ A small GPU is enough. Llama 3.2 3B fits in about 3 GB of video memory with embe
 ## License
 
 AGPL-3.0. See [LICENSE](LICENSE).
+
+## Reviewed starter answers
+
+An optional `suggested_answers` table gives a suggested question a reviewed answer,
+an exact public source URL, and evidence phrases. The server verifies the phrases
+against that page in the current index before returning the answer without an Ollama
+call. A removed source or missing evidence causes a handoff. Other questions still
+use normal retrieval and the local model. Use only facts checked against the cited
+page and disclose when starter replies are reviewed FAQ answers.
+
+```toml
+suggestions = ["Do you ship abroad?"]
+# Add this table after the other settings:
+[suggested_answers."Do you ship abroad?"]
+answer = "Yes. We ship to 30 countries."
+source_url = "https://example.com/shipping"
+evidence = ["ship to 30 countries"]
+```
+
+Answer text contains no URLs; the popup shows the validated source link separately.
+Evidence checks detect removed wording, but do not replace human review when a page
+changes meaning while retaining those phrases.

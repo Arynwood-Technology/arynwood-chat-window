@@ -63,6 +63,13 @@ class Limits:
 
 
 @dataclass(frozen=True)
+class SuggestedAnswer:
+    answer: str
+    source_url: str
+    evidence: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class Site:
     id: str
     name: str
@@ -78,6 +85,7 @@ class Site:
     model: Model = field(default_factory=Model)
     retrieval: Retrieval = field(default_factory=Retrieval)
     limits: Limits = field(default_factory=Limits)
+    suggested_answers: dict[str, SuggestedAnswer] = field(default_factory=dict)
 
     @property
     def link_domains(self) -> tuple[str, ...]:
@@ -126,7 +134,7 @@ def parse_site(site_id: str, data: dict) -> Site:
         if not data.get(key):
             raise ConfigError(f"{site_id}: missing required key {key!r}")
     top = {"name", "description", "allowed_origins", "contact", "greeting", "notice", "privacy_url",
-           "suggestions", "retention_days", "crawl", "model", "retrieval", "limits"}
+           "suggestions", "retention_days", "crawl", "model", "retrieval", "limits", "suggested_answers"}
     unknown = set(data) - top
     if unknown:
         raise ConfigError(f"{site_id}: unknown keys: {', '.join(sorted(unknown))}")
@@ -141,6 +149,26 @@ def parse_site(site_id: str, data: dict) -> Site:
     retention = int(data.get("retention_days", 30))
     if not 1 <= retention <= 365:
         raise ConfigError(f"{site_id}: retention_days must be between 1 and 365")
+    curated = {}
+    raw_answers = data.get("suggested_answers", {})
+    if not isinstance(raw_answers, dict):
+        raise ConfigError("suggested_answers must be a table")
+    for question, entry in raw_answers.items():
+        if question not in data.get("suggestions", ()):
+            raise ConfigError("suggested_answers must correspond to a suggested question")
+        if not isinstance(entry, dict) or set(entry) != {"answer", "source_url", "evidence"}:
+            raise ConfigError("suggested answer needs answer, source_url and evidence")
+        url = urlsplit(str(entry["source_url"]))
+        if url.scheme != "https" or url.hostname not in crawl.allow_domains or url.username or url.fragment:
+            raise ConfigError("suggested answer source must be an exact allowed HTTPS domain")
+        evidence = entry["evidence"]
+        if not isinstance(evidence, list) or not evidence or not all(isinstance(v, str) and v.strip() for v in evidence):
+            raise ConfigError("suggested answer needs nonempty evidence phrases")
+        if not isinstance(entry["answer"], str) or not entry["answer"].strip():
+            raise ConfigError("suggested answer cannot be empty")
+        if re.search(r"https?://", entry["answer"], re.I):
+            raise ConfigError("suggested answer links must come from its source_url")
+        curated[question] = SuggestedAnswer(entry["answer"], entry["source_url"], tuple(evidence))
     return Site(
         id=site_id, name=str(data["name"]), description=str(data["description"]),
         allowed_origins=tuple(_origin(o) for o in data["allowed_origins"]),
@@ -149,6 +177,7 @@ def parse_site(site_id: str, data: dict) -> Site:
         suggestions=tuple(str(s) for s in data.get("suggestions", ()))[:4], retention_days=retention,
         crawl=crawl, model=_section(data, "model", Model),
         retrieval=_section(data, "retrieval", Retrieval), limits=_section(data, "limits", Limits),
+        suggested_answers=curated,
     )
 
 
