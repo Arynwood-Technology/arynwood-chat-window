@@ -6,9 +6,8 @@ and actual behavior. Remove private data and credentials. Discuss substantial ch
 ## Checks
 
 ```bash
-python3 -m venv /tmp/chat-window-dev
-/tmp/chat-window-dev/bin/pip install -e ".[dev]"
-/tmp/chat-window-dev/bin/python -m pytest -q
+python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
+.venv/bin/python -m pytest -q
 ```
 
 ## What to expect

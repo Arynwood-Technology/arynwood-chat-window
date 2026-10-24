@@ -2,7 +2,8 @@
 
 [![Tests](https://github.com/Arynwood-Technology/arynwood-chat-window/actions/workflows/tests.yml/badge.svg)](https://github.com/Arynwood-Technology/arynwood-chat-window/actions/workflows/tests.yml)
 
-A website chat window that answers from your site's public pages using a model you run. Models are served through [Ollama](https://ollama.com). Visitors' questions go to your server, not to an AI company.
+A chat window for your website that answers from your site's own public pages, using a model you run
+yourself through [Ollama](https://ollama.com). Visitors' questions go to your server, not to an AI company.
 
 **Status: alpha (0.2.0).** It runs, it's tested, and it hasn't served real visitors yet.
 
