@@ -1,5 +1,7 @@
 # Arynwood Chat Window
 
+[![Tests](https://github.com/Arynwood-Technology/arynwood-chat-window/actions/workflows/tests.yml/badge.svg)](https://github.com/Arynwood-Technology/arynwood-chat-window/actions/workflows/tests.yml)
+
 A chat window for your website that answers from your site's own public pages, using a model you run
 yourself through [Ollama](https://ollama.com). Visitors' questions go to your server, not to an AI company.
 
@@ -170,3 +172,9 @@ evidence = ["ship to 30 countries"]
 Answer text contains no URLs; the popup shows the validated source link separately.
 Evidence checks detect removed wording, but do not replace human review when a page
 changes meaning while retaining those phrases.
+
+## How this is built
+
+I decide the scope and architecture, review changes, run the available checks and ship releases.
+Claude Code and Codex work with me as pair programmers; some assisted commits carry
+co-author trailers, and others do not. [How we build](https://github.com/Arynwood-Technology/.github/blob/main/HOW-WE-BUILD.md).
